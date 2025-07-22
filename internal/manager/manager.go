@@ -1,3 +1,4 @@
+// Package manager handles creation and installation of packages from JSON configs
 package manager
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/artnikel/packagemanager/internal/remote"
 )
 
+// CreatePacket creates an archive based on packet.json
 func CreatePacket(configPath string, cfg *config.Config) error {
 	fmt.Printf("Creating a packet of %s...\n", configPath)
 
@@ -39,6 +41,7 @@ func CreatePacket(configPath string, cfg *config.Config) error {
 	return nil
 }
 
+// UpdatePackages downloads and installs packages from packages.json
 func UpdatePackages(configPath string, cfg *config.Config) error {
 	fmt.Printf("Updating packages from %s...\n", configPath)
 
@@ -57,7 +60,7 @@ func UpdatePackages(configPath string, cfg *config.Config) error {
 
 		version := "1.0"
 		if pkg.Version != "" {
-			version = strings.TrimLeft(pkg.Version, ">=<=")
+			version = strings.TrimLeft(pkg.Version, "><=")
 		}
 
 		archiveName := fmt.Sprintf("%s-%s.tar.gz", pkg.Name, version)
