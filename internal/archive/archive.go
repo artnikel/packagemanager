@@ -1,3 +1,4 @@
+// Package archive provides functions to create and extract tar.gz archives from specified file targets
 package archive
 
 import (
@@ -11,18 +12,30 @@ import (
 	"github.com/artnikel/packagemanager/internal/models"
 )
 
+// CreateArchive creates a tar.gz archive from masked files
 func CreateArchive(filename string, targets []models.Target) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("warning: failed to close file: %v\n", err)
+		}
+	}()
 
 	gzWriter := gzip.NewWriter(file)
-	defer gzWriter.Close()
-
+	defer func() {
+		if err := gzWriter.Close(); err != nil {
+			fmt.Printf("warning: failed to close gzip writer: %v\n", err)
+		}
+	}()
 	tarWriter := tar.NewWriter(gzWriter)
-	defer tarWriter.Close()
+	defer func() {
+		if err := tarWriter.Close(); err != nil {
+			fmt.Printf("warning: failed to close tar writer: %v\n", err)
+		}
+	}()
 
 	for _, target := range targets {
 		matches, err := filepath.Glob(target.Path)
@@ -38,7 +51,7 @@ func CreateArchive(filename string, targets []models.Target) error {
 				}
 			}
 
-			if err := AddFileToTar(tarWriter, match); err != nil {
+			if err := addFileToTar(tarWriter, match); err != nil {
 				return fmt.Errorf("file addition error %s: %v", match, err)
 			}
 			fmt.Printf("Added file: %s\n", match)
@@ -48,21 +61,26 @@ func CreateArchive(filename string, targets []models.Target) error {
 	return nil
 }
 
-func AddFileToTar(tarWriter *tar.Writer, filename string) error {
+// addFileToTar adds the file to a tar archive
+func addFileToTar(tarWriter *tar.Writer, filename string) error {
 	fileInfo, err := os.Stat(filename)
 	if err != nil {
 		return err
 	}
 
 	if fileInfo.IsDir() {
-		return nil 
+		return nil
 	}
 
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("warning: failed to close file: %v\n", err)
+		}
+	}()
 
 	header := &tar.Header{
 		Name: filename,

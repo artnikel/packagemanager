@@ -1,3 +1,4 @@
+// Package remote provides SSH-based file upload and download functionality using SFTP
 package remote
 
 import (
@@ -11,7 +12,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func createSSHClient(cfg config.SSHConfig) (*ssh.Client, error) {
+// createSSHClient creates an SSH client
+func createSSHClient(cfg *config.SSHConfig) (*ssh.Client, error) {
 	var auth []ssh.AuthMethod
 
 	if cfg.Password != "" {
@@ -39,78 +41,112 @@ func createSSHClient(cfg config.SSHConfig) (*ssh.Client, error) {
 	clientConfig := &ssh.ClientConfig{
 		User:            cfg.User,
 		Auth:            auth,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // #nosec G106 -- insecure host key callback used intentionally in trusted environment
 	}
 
 	address := fmt.Sprintf("%s:%s", cfg.Host, cfg.Port)
 	return ssh.Dial("tcp", address, clientConfig)
 }
 
+// UploadToServer uploads the file to the server via SSH
 func UploadToServer(filename string, cfg *config.Config) error {
-    client, err := createSSHClient(cfg.SSH)
-    if err != nil {
-        return err
-    }
-    defer client.Close()
-
-    sftpClient, err := sftp.NewClient(client)
-    if err != nil {
-        return err
-    }
-    defer sftpClient.Close()
-
-    err = sftpClient.MkdirAll(cfg.Path.RemotePackageDir)
-    if err != nil {
-        return fmt.Errorf("failed to create remote directory: %w", err)
-    }
-
-    localFile, err := os.Open(filename)
-    if err != nil {
-        return err
-    }
-    defer localFile.Close()
-
-    remotePath := filepath.Join(cfg.Path.RemotePackageDir, filename)
-
-    remoteFile, err := sftpClient.Create(remotePath)
-    if err != nil {
-        return fmt.Errorf("error creating a file on the server: %w", err)
-    }
-    defer remoteFile.Close()
-
-    if _, err := io.Copy(remoteFile, localFile); err != nil {
-        return err
-    }
-
-    fmt.Printf("File %s uploaded to the server: %s\n", filename, remotePath)
-    return nil
-}
-
-func DownloadFromServer(filename string, cfg *config.Config) error {
-	client, err := createSSHClient(cfg.SSH)
+	client, err := createSSHClient(&cfg.SSH)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			fmt.Printf("warning: failed to close ssh client: %v\n", err)
+		}
+	}()
 
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
 		return err
 	}
-	defer sftpClient.Close()
+	defer func() {
+		if err := sftpClient.Close(); err != nil {
+			fmt.Printf("warning: failed to close sftp client: %v\n", err)
+		}
+	}()
+
+	err = sftpClient.MkdirAll(cfg.Path.RemotePackageDir)
+	if err != nil {
+		return fmt.Errorf("failed to create remote directory: %w", err)
+	}
+
+	localFile, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := localFile.Close(); err != nil {
+			fmt.Printf("warning: failed to close local file: %v\n", err)
+		}
+	}()
+
+	remotePath := filepath.Join(cfg.Path.RemotePackageDir, filename)
+
+	remoteFile, err := sftpClient.Create(remotePath)
+	if err != nil {
+		return fmt.Errorf("error creating a file on the server: %w", err)
+	}
+	defer func() {
+		if err := remoteFile.Close(); err != nil {
+			fmt.Printf("warning: failed to close remote file: %v\n", err)
+		}
+	}()
+
+	if _, err := io.Copy(remoteFile, localFile); err != nil {
+		return err
+	}
+
+	fmt.Printf("File %s uploaded to the server: %s\n", filename, remotePath)
+	return nil
+}
+
+// DownloadFromServer downloads a file from the server via SSH
+func DownloadFromServer(filename string, cfg *config.Config) error {
+	client, err := createSSHClient(&cfg.SSH)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := client.Close(); err != nil {
+			fmt.Printf("warning: failed to close ssh client: %v\n", err)
+		}
+	}()
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := sftpClient.Close(); err != nil {
+			fmt.Printf("warning: failed to close sftp client: %v\n", err)
+		}
+	}()
 
 	remotePath := filepath.Join(cfg.Path.RemotePackageDir, filename)
 	remoteFile, err := sftpClient.Open(remotePath)
 	if err != nil {
 		return err
 	}
-	defer remoteFile.Close()
+	defer func() {
+		if err := remoteFile.Close(); err != nil {
+			fmt.Printf("warning: failed to close remote file: %v\n", err)
+		}
+	}()
 
 	localFile, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
-	defer localFile.Close()
+	defer func() {
+		if err := localFile.Close(); err != nil {
+			fmt.Printf("warning: failed to close local file: %v\n", err)
+		}
+	}()
 
 	if _, err := io.Copy(localFile, remoteFile); err != nil {
 		return err

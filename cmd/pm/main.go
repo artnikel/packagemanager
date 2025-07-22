@@ -1,3 +1,4 @@
+// Package main is an entry point to application
 package main
 
 import (
@@ -14,7 +15,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
-	if len(os.Args) < 3 {
+	const minArgs = 3
+	if len(os.Args) < minArgs {
 		fmt.Println("Usage:")
 		fmt.Println("  pm create ./packet.json")
 		fmt.Println("  pm update ./packages.json")
